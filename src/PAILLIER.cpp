@@ -10,7 +10,7 @@ typedef long long int           ll;
 #define all(X)          X.begin(),X.end()
 #define REVERSE(x)      reverse(x.begin(),x.end())
 
-template<class T> inline int print(vector<T>v)
+template<class T> inline void print(vector<T>v)
 {
     int sz=v.size();
     for(int i=0;i<sz;i++)
@@ -19,7 +19,6 @@ template<class T> inline int print(vector<T>v)
 }
 
 // String conversion
-ll stoi(string str){stringstream ss(str);ll N;ss>>N;return N;}
 string itos(ll N){stringstream ss;ss<<N;string str;str=ss.str();return str;}
 
 #define pb          push_back

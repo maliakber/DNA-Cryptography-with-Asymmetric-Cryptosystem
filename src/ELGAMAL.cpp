@@ -10,7 +10,7 @@ typedef long long int           ll;
 #define all(X)          X.begin(),X.end()
 #define REVERSE(x)      reverse(x.begin(),x.end())
 
-template<class T> inline int print(vector<T>v)
+template<class T> inline void print(vector<T>v)
 {
     int sz=v.size();
     for(int i=0;i<sz;i++)
@@ -19,7 +19,6 @@ template<class T> inline int print(vector<T>v)
 }
 
 // String conversion
-ll stoi(string str){stringstream ss(str);ll N;ss>>N;return N;}
 string itos(ll N){stringstream ss;ss<<N;string str;str=ss.str();return str;}
 
 #define pb          push_back
@@ -33,125 +32,112 @@ string itos(ll N){stringstream ss;ss<<N;string str;str=ss.str();return str;}
 #define BLOCK_SIZE (MODULUS_SIZE/8)         /* This is the size of a block that gets en/decrypted at once */
 #define BUFFER_SIZE ((MODULUS_SIZE/8) / 2)  /* This is the number of bytes in n and p */
 //////////////////////////////////////////////////////////////////////
-typedef struct {
-    mpz_t n; /* Modulus */
-    mpz_t e; /* Public Exponent */
-} public_key;
+struct public_key {
+	mpz_t n;
+	mpz_t g;
+	mpz_t h;
+};
 
-typedef struct {
-    mpz_t n; /* Modulus */
-    mpz_t d; /* Private Exponent */
-} private_key;
+struct private_key {
+	mpz_t n;
+	mpz_t g;
+	mpz_t h;
+	mpz_t x;
+};
+
+void get_random_n_bits(mpz_t r, size_t bits)
+{
+	size_t size = (size_t) ceilf(bits/8);
+	char *buffer = (char*) malloc(sizeof(char)*size);
+	for(int i = 0; i < size; i++)
+        buffer[i] = rand() % 0xFF;
+	mpz_import (r, size,1,sizeof(char), 0,0, buffer);
+	free(buffer);
+}
+
+void get_random_n (mpz_t r, mpz_t max) {
+	do {
+		get_random_n_bits(r,mpz_sizeinbase(max,2));
+	} while (mpz_cmp(r,max)>=0);
+}
+
+void get_random_n_prime (mpz_t r, mpz_t max) {
+	do {
+		get_random_n_bits(r,mpz_sizeinbase(max,2));
+		mpz_nextprime(r,r);
+	} while (mpz_cmp(r,max)>=0);
+}
 
 void generate_keys(private_key &prv, public_key &pub)
 {
-    // private key initialization
     mpz_init(prv.n);
-    mpz_init(prv.d);
-    // public key initialization
-    mpz_init(pub.n);
-    mpz_init(pub.e);
+    mpz_init(prv.g);
+    mpz_init(prv.h);
+    mpz_init(prv.x);
 
-    char buf[BUFFER_SIZE];
-    int i;
-    mpz_t phi; mpz_init(phi);
-    mpz_t p; mpz_init(p);
-    mpz_t q; mpz_init(q);
-    mpz_t tmp1; mpz_init(tmp1);
-    mpz_t tmp2; mpz_init(tmp2);
 
-    srand(time(NULL));
+	mpz_init(pub.n);
+	mpz_init(pub.g);
+	mpz_init(pub.h);
 
-    /* Instead of selecting e st. gcd(phi, e) = 1; 1 < e < phi, lets choose e
-       first then pick p,q st. gcd(e, p-1) = gcd(e, q-1) = 1 */
-    // We'll set e globally.  I've seen suggestions to use primes like 3, 17 or
-    // 65537, as they make coming calculations faster.  Lets use 3.
-    for(i = 0; i < BUFFER_SIZE; i++)
-        buf[i] = rand() % 0xFF;
-    // Set the top two bits to 1 to ensure int(tmp) is relatively large
-    buf[0] |= 0xC0;
-    // Set the bottom bit to 1 to ensure int(tmp) is odd (better for finding primes)
-    buf[BUFFER_SIZE - 1] |= 0x01;
-    // Interpret this char buffer as an int
-    mpz_import(tmp1, BUFFER_SIZE, 1, sizeof(buf[0]), 0, 0, buf);
-    // Pick the next prime starting from that random number
-    mpz_nextprime(pub.e, tmp1);
+	/* n is a large prime */
+	get_random_n_bits(prv.n,MODULUS_SIZE);
+	mpz_nextprime(prv.n,prv.n);
 
-    /* Select p and q */
-    /* Start with p */
-    // Set the bits of tmp randomly
-    for(i = 0; i < BUFFER_SIZE; i++)
-        buf[i] = rand() % 0xFF;
-    // Set the top two bits to 1 to ensure int(tmp) is relatively large
-    buf[0] |= 0xC0;
-    // Set the bottom bit to 1 to ensure int(tmp) is odd (better for finding primes)
-    buf[BUFFER_SIZE - 1] |= 0x01;
-    // Interpret this char buffer as an int
-    mpz_import(tmp1, BUFFER_SIZE, 1, sizeof(buf[0]), 0, 0, buf);
-    // Pick the next prime starting from that random number
-    mpz_nextprime(p, tmp1);
-    /* Make sure this is a good choice*/
-    mpz_mod(tmp2, p, pub.e);        /* If p mod e == 1, gcd(phi, e) != 1 */
-    while(!mpz_cmp_ui(tmp2, 1))
-    {
-        mpz_nextprime(p, p);    /* so choose the next prime */
-        mpz_mod(tmp2, p, pub.e);
-    }
+	/* Get some random x < n */
+	get_random_n(prv.x,prv.n);
 
-    /* Now select q */
-    do {
-        for(i = 0; i < BUFFER_SIZE; i++)
-            buf[i] = rand() % 0xFF;
-        // Set the top two bits to 1 to ensure int(tmp) is relatively large
-        buf[0] |= 0xC0;
-        // Set the bottom bit to 1 to ensure int(tmp) is odd
-        buf[BUFFER_SIZE - 1] |= 0x01;
-        // Interpret this char buffer as an int
-        mpz_import(tmp1, (BUFFER_SIZE), 1, sizeof(buf[0]), 0, 0, buf);
-        // Pick the next prime starting from that random number
-        mpz_nextprime(q, tmp1);
-        mpz_mod(tmp2, q, pub.e);
-        while(!mpz_cmp_ui(tmp2, 1))
-        {
-            mpz_nextprime(q, q);
-            mpz_mod(tmp2, q, pub.e);
-        }
-    } while(mpz_cmp(p, q) == 0); /* If we have identical primes (unlikely), try again */
+	/* g is the generator */
+	get_random_n_prime(prv.g,prv.n);
 
-    /* Calculate n = p x q */
-    mpz_mul(pub.n, p, q);
+	/* h = g^x (mod n) */
+	mpz_powm(prv.h,prv.g,prv.x,prv.n);
 
-    /* Compute phi(n) = (p-1)(q-1) */
-    mpz_sub_ui(tmp1, p, 1);
-    mpz_sub_ui(tmp2, q, 1);
-    mpz_mul(phi, tmp1, tmp2);
+	mpz_set(pub.n,prv.n);
+	mpz_set(pub.g,prv.g);
+	mpz_set(pub.h,prv.h);
 
-    /* Calculate d (multiplicative inverse of e mod phi) */
-    if(mpz_invert(prv.d, pub.e, phi) == 0)
-    {
-        mpz_gcd(tmp1, pub.e, phi);
-        printf("gcd(e, phi) = [%s]\n", mpz_get_str(NULL, 16, tmp1));
-        printf("Invert failed\n");
-    }
-
-    mpz_set(prv.n, pub.n);
-
-    printf("\np : "); P(p);
-    printf("\nq : "); P(q);
-    printf("\nPublic Key:\n");
-    printf("n : "); P(pub.n);
-    printf("e : "); P(pub.e);
-    printf("\nPrivate Key:\n");
-    printf("n : "); P(prv.n);
-    printf("d : "); P(prv.d);
-    return;
+	printf("Keys :\n");
+	printf("n : "); P(prv.n);
+	printf("g : "); P(prv.g);
+	printf("h : "); P(prv.h);
+	printf("x : "); P(prv.x);
 }
-void encryption(mpz_t res,public_key pub,mpz_t M){
-    mpz_powm(res,M,pub.e,pub.n);
+void encryption(mpz_t c1, mpz_t c2,mpz_t msg,public_key pub){
+    mpz_t y,s;
+	mpz_init(y);
+	mpz_init(s);
+	mpz_init(c1);
+	mpz_init(c2);
+
+	get_random_n(y,pub.n);
+
+	/* s = h^y (mod n) */
+	mpz_powm(s,pub.h,y,pub.n);
+
+	/* c1 = g^y (mod n) */
+	mpz_powm(c1,pub.g,y,pub.n);
+
+	/* c2 = msg * s (mod n) */
+	mpz_mul(c2,msg,s);
+	mpz_mod(c2,c2,pub.n);
+
 }
 
-void decryption(mpz_t res,private_key prv,mpz_t M){
-    mpz_powm(res,M,prv.d,prv.n);
+void decryption(mpz_t msg,mpz_t c1,mpz_t c2,private_key prv){
+    mpz_t s,inv_s;
+	mpz_init(s);
+	mpz_init(inv_s);
+
+	/* s = c1^x */
+	mpz_powm(s,c1,prv.x,prv.n);
+
+	/* inv_s = s^{-1} */
+	mpz_invert(inv_s,s,prv.n);
+
+	/* msg = c2 inv_s */
+	mpz_mul(msg,c2,inv_s);
+	mpz_mod(msg,msg,prv.n);
 }
 string to_str(int x)
 {
@@ -244,8 +230,8 @@ void binary_to_decimal(mpz_t val,string str)
 vector<int> get_dist(int n)
 {
     vector<int>v;
-    v.push_back(3);
-    v.push_back(5);
+    v.push_back(1);
+    v.push_back(1);
     for(int i=2;i<n;i++)
     {
         v.push_back((v[i-1]+v[i-2])%20);
@@ -273,7 +259,7 @@ string rnd(int n)
 int main()
 {
     //freopen("E:/in.txt","r",stdin);
-    //freopen("outRSA.txt","w",stdout);
+    //freopen("outElgamal.txt","w",stdout);
     //double st=clock();
     int i,j,k,l,m,n;
     private_key prv;
@@ -290,8 +276,8 @@ int main()
     {
         to_dec+=to_str(str[i]);
     }
-    printf("\nMessage in decimal\n");
-    cout<<" -- "<<to_dec<<"\n";
+    //printf("\nMessage in decimal\n");
+    //cout<<" -- "<<to_dec<<"\n";
 
     // making chunk
     vector<string>chunk;
@@ -318,35 +304,34 @@ int main()
 
 
     // Encryption
-    int sz=chunk.size();
+    int sz=chunk.size()*2;
     mpz_t encrypted_chunk[sz];
-    for(i=0;i<sz;i++)
+    for(i=0;i<sz/2;i++)
     {
         mpz_t M;
-        mpz_init(encrypted_chunk[i]);
+        mpz_init(encrypted_chunk[i*2]);
+        mpz_init(encrypted_chunk[i*2+1]);
         mpz_init(M);
         mpz_set_str( M, chunk[i].c_str(), 10);
 
-        encryption(encrypted_chunk[i],pub,M);
+        encryption(encrypted_chunk[i*2],encrypted_chunk[i*2+1],M,pub);
 
         printf("\nEncrypted text %d\n",i+1);
-        P(encrypted_chunk[i]);
+        printf("C1: ");P(encrypted_chunk[i*2]);
+        printf("C2: ");P(encrypted_chunk[i*2+1]);
     }
 
     vector<string>bin_enc;
     for(i=0;i<sz;i++)
     {
         bin_enc.push_back(convert_bin(encrypted_chunk[i],MODULUS_SIZE));
-        printf("\nbinary text %d\n",i+1);
-        cout<<bin_enc[i]<<"\n";
+        //cout<<bin_enc[i]<<"\n";
     }
 
     vector<string>final;
     for(int i=0;i<sz;i++)
     {
         final.push_back(to_dna(bin_enc[i]));
-        printf("\nDNA text %d\n",i+1);
-        cout<<final[i]<<"\n";
     }
 
     vector<int>dist=get_dist(sz);
@@ -368,8 +353,6 @@ int main()
     {
         token.push_back(msg.substr(i,msg_sz));
         i+=dist1[j++];
-        printf("\nDNA text %d\n",j);
-        cout<<token[j-1]<<"\n";
     }
     int sz1=token.size();
 
@@ -377,30 +360,28 @@ int main()
     for(i=0;i<sz1;i++)
     {
         bin_dec.push_back(dna_to_binary(token[i]));
-        printf("\nbinary text %d\n",i+1);
-        cout<<bin_dec[i]<<"\n";
+        //cout<<bin_dec[i]<<"\n";
     }
 
     mpz_t val[sz1];
     for(i=0;i<sz1;i++)
     {
         binary_to_decimal(val[i],bin_dec[i]);
-        printf("\ndecimal text %d\n",i+1);
-        P(val[i]);
+        //P(val[i]);
     }
 
     vector<string>dec_msg;
-    for(i=0;i<sz1;i++)
+    for(i=0;i<sz1;i+=2)
     {
         mpz_t res; mpz_init(res);
-        decryption(res,prv,val[i]);
-        printf("\nDecrypted text %d\n",i+1);
-        P(res);
+        decryption(res,val[i],val[i+1],prv);
+        //printf("\nDecrypted text %d\n",i+1);
+        //P(res);
         char * tmp = mpz_get_str(NULL,10,res);
         dec_msg.push_back(tmp);
     }
 
-    for(i=0;i<sz1;i++)
+    for(i=0;i<sz1/2;i++)
     {
         if(dec_msg[i].size()<len)
         {
@@ -414,7 +395,7 @@ int main()
     }
 
     string original_msg;
-    for(i=0;i<sz1;i++)
+    for(i=0;i<sz1/2;i++)
       original_msg+=dec_msg[i];
 
     string final_str;
