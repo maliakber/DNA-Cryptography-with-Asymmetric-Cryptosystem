@@ -1,7 +1,7 @@
 # DNA-Cryptography-with-Asymmetric-Cryptosystem
 
 Install gmp library:
-sudo apt-get install libgmp-dev
+`sudo apt-get install libgmp-dev`
 
 Compile the program:
 g++ -Wall -O3 -o main main.cpp -lgmp
@@ -12,6 +12,4 @@ g++ -Wall -O3 -o main main.cpp -lgmp
 	-lgmp: linking gmp library
 
 Run the program:
-./main
-
-
+`./main`
